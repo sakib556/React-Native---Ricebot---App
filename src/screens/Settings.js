@@ -12,12 +12,14 @@ import {
 import { ScrollView as RNScrollView } from 'react-native'; // alias for debug log
 import mqttService from '../services/MqttService';
 
+const MQTT_TOPIC = 'riceCooker/quantity';
+
 const Settings = ({ navigation }) => {
   const [serialNumber, setSerialNumber] = useState('');
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
-  const [brokerHost, setBrokerHost] = useState('554b0e4c82374d2ab695dd37313d9311.s1.eu.hivemq.cloud');
-  const [brokerPort, setBrokerPort] = useState('8884');
+  const [brokerHost, setBrokerHost] = useState('broker.hivemq.com');
+  const [brokerPort, setBrokerPort] = useState('8000');
   const [clientId, setClientId] = useState(`clientId-${Math.random().toString(36).substr(2, 9)}`);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -34,14 +36,11 @@ const Settings = ({ navigation }) => {
       setConnectionStatus(status);
       appendLog(`Status: ${status}`);
     };
-    const handleRaw = (data) => appendLog(`Raw: ${data}`);
     const handleMessage = (msg) => appendLog(`Message: ${JSON.stringify(msg)}`);
 
-    mqttService.on('statusChange', handleStatusChange);
-    mqttService.on('rawMessage', handleRaw);
-    mqttService.on('message', handleMessage);
+    mqttService.onStatusChange(handleStatusChange);
+    mqttService.onMessage(handleMessage);
 
-    // Get initial status
     setConnectionStatus(mqttService.getConnectionStatus());
 
     return () => {
@@ -52,15 +51,14 @@ const Settings = ({ navigation }) => {
   const handleConnect = async () => {
     try {
       appendLog(`Connecting to: ${brokerHost}:${brokerPort} as ${clientId}`);
-      mqttService.updateConfig({
-        host: brokerHost,
-        port: parseInt(brokerPort),
-        clientId: clientId,
-        username: username,
-        password: password,
-        keepalive: parseInt(keepAlive),
+      mqttService.connect(
+
+      );
+      // Subscribe to the topic after connecting
+      appendLog(`subscribing to ${MQTT_TOPIC}`);
+      mqttService.subscribe(MQTT_TOPIC, (msg) => {
+        appendLog(`Received on ${MQTT_TOPIC}: ${JSON.stringify(msg)}`);
       });
-      await mqttService.connect();
     } catch (error) {
       appendLog(`Failed to connect: ${error}`);
       setConnectionStatus('disconnected');
@@ -439,8 +437,8 @@ const styles = StyleSheet.create({
     padding: 10,
     marginTop: 20,
     marginBottom: 30,
-    minHeight: 120,
-    maxHeight: 200,
+    minHeight: 240, // was 120
+    maxHeight: 400, // was 200
   },
   debugTitle: {
     color: '#fff',
@@ -448,7 +446,8 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   debugScroll: {
-    maxHeight: 160,
+    maxHeight: 350, // was 160
+    minHeight: 200, // ensure always scrollable
   },
   debugLine: {
     color: '#b5e853',

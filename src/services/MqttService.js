@@ -1,113 +1,126 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import init from 'react_native_mqtt';
+
+// Initialize react_native_mqtt with AsyncStorage
+init({
+  size: 10000,
+  storageBackend: AsyncStorage,
+  defaultExpires: 1000 * 3600 * 24,
+  enableCache: true,
+  sync: {},
+});
+
+// MQTT connection options
+const options = {
+  host: 'broker.hivemq.com',
+  port: 8000, // WebSocket port for HiveMQ public broker
+  path: '/mqtt', // WebSocket path for HiveMQ
+  id: 'id_' + parseInt(Math.random() * 100000),
+};
+
 class MqttService {
   constructor() {
-    this.ws = null;
+    this.client = null;
     this.isConnected = false;
-    this.isConnecting = false;
-    this.eventListeners = new Map();
-    this.subscribers = new Map();
-    this.messageId = 0;
+    this.statusListeners = [];
+    this.messageListeners = [];
+    this.subscribedTopics = new Set();
+  }
 
-    this.config = {
-      host: '554b0e4c82374d2ab695dd37313d9311.s1.eu.hivemq.cloud',
-      port: 8884,
-      protocol: 'wss',
-      clientId: `clientId-${Math.random().toString(36).substr(2, 9)}`,
-      keepalive: 60,
-      topic: 'testtopic/1',
+  _setupClient() {
+    this.client = new Paho.MQTT.Client(options.host, options.port, options.path);
+    this.client.onConnectionLost = (responseObject) => {
+      this.isConnected = false;
+      this._emitStatus('disconnected');
+      if (responseObject.errorCode !== 0) {
+        console.log('onConnectionLost:', responseObject.errorMessage);
+      }
+    };
+    this.client.onMessageArrived = (message) => {
+      this._emitMessage(message);
     };
   }
 
-  on(event, listener) {
-    if (!this.eventListeners.has(event)) this.eventListeners.set(event, []);
-    this.eventListeners.get(event).push(listener);
-  }
-
-  emit(event, ...args) {
-    const listeners = this.eventListeners.get(event);
-    if (listeners) listeners.forEach(fn => fn(...args));
-  }
-
   connect() {
-    return new Promise((resolve, reject) => {
-      if (this.isConnecting) return reject('Already connecting');
-      this.isConnecting = true;
-      this.emit('statusChange', 'connecting');
-
-      const url = `wss://${this.config.host}:${this.config.port}/mqtt`;
-      console.log('Connecting to:', url);
-      this.ws = new WebSocket(url);
-
-      this.ws.onopen = () => {
+    if (this.client) {
+      this.disconnect();
+    }
+    this._setupClient();
+    this._emitStatus('connecting');
+    this.client.connect({
+      onSuccess: () => {
         this.isConnected = true;
-        this.isConnecting = false;
-        console.log('Connected to MQTT broker');
-        this.emit('statusChange', 'connected');
-        // Subscribe to topic after connect
-        // this.subscribe(this.config.topic, (msg) => {
-        //   this.emit('message', msg);
-        // });
-        // resolve();
-      };
-
-      this.ws.onmessage = (event) => {
-        console.log('Received raw message:', event.data);
-        // Just emit the raw message for now
-        this.emit('rawMessage', event.data);
-      };
-
-      this.ws.onerror = (err) => {
+        this._emitStatus('connected');
+      },
+      useSSL: false,
+      timeout: 3,
+      onFailure: (err) => {
         this.isConnected = false;
-        this.isConnecting = false;
-        console.log('MQTT connection error:', err);
-        this.emit('statusChange', 'disconnected');
-        reject(err);
-      };
-
-      this.ws.onclose = () => {
-        this.isConnected = false;
-        this.isConnecting = false;
-        console.log('MQTT connection closed');
-        this.emit('statusChange', 'disconnected');
-      };
+        this._emitStatus(`failed: ${err?.errorMessage || err?.toString?.() || 'Unknown error'}`);
+        console.log('Connect failed!', err);
+      },
+      userName: '', // Add if needed
+      password: '', // Add if needed
+      cleanSession: true,
+      keepAliveInterval: 60,
     });
   }
 
   disconnect() {
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
+    if (this.client && this.isConnected) {
+      this.client.disconnect();
       this.isConnected = false;
-      this.isConnecting = false;
-      this.emit('statusChange', 'disconnected');
-      console.log('Disconnected from MQTT broker');
+      this._emitStatus('disconnected');
+      this.subscribedTopics.clear();
     }
   }
 
-  subscribe(topic, callback) {
-    this.subscribers.set(topic, callback);
-    console.log(`Subscribed to topic: ${topic}`);
+  subscribe(topic, onMessage) {
+    if (!this.client || !this.isConnected) return;
+    this.client.subscribe(topic, { qos: 0 });
+    this.subscribedTopics.add(topic);
+    if (onMessage) {
+      // Add a wrapper to filter messages for this topic
+      const listener = (message) => {
+        if (message.destinationName === topic) {
+          onMessage(message);
+        }
+      };
+      this.messageListeners.push(listener);
+    }
+  }
+
+  unsubscribe(topic) {
+    if (!this.client || !this.isConnected) return;
+    this.client.unsubscribe(topic);
+    this.subscribedTopics.delete(topic);
   }
 
   publish(topic, message) {
-    if (!this.ws || !this.isConnected) return;
-    const payload = {
-      type: 'publish',
-      topic,
-      payload: message,
-      messageId: ++this.messageId,
-    };
-    this.ws.send(JSON.stringify(payload));
-    console.log(`Published to topic ${topic}:`, message);
+    if (!this.client || !this.isConnected) return;
+    const msg = new Paho.MQTT.Message(options.id + ':' + message);
+    msg.destinationName = topic;
+    this.client.send(msg);
+  }
+
+  onStatusChange(listener) {
+    this.statusListeners.push(listener);
+  }
+
+  _emitStatus(status) {
+    this.statusListeners.forEach((cb) => cb(status));
+  }
+
+  onMessage(listener) {
+    this.messageListeners.push(listener);
+  }
+
+  _emitMessage(message) {
+    this.messageListeners.forEach((cb) => cb(message));
   }
 
   getConnectionStatus() {
-    if (this.isConnecting) return 'connecting';
-    if (this.isConnected) return 'connected';
-    return 'disconnected';
-  }
-
-  updateConfig(newConfig) {
-    this.config = { ...this.config, ...newConfig };
+    return this.isConnected ? 'connected' : 'disconnected';
   }
 }
 
