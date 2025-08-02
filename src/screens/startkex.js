@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -12,36 +12,21 @@ import {
 import axios from 'axios';
 import moment from 'moment';
 import PushNotification from 'react-native-push-notification';
-import useMqtt from '../hooks/useMqtt';
 
 const StartCooking = ({ navigation }) => {
   const [selectedQuantity, setSelectedQuantity] = useState('1 Cup');
-  const {
-    isConnected,
-    connect,
-    startCooking,
-    subscribeToCookingProgress,
-    subscribeToAlerts,
-    MQTT_TOPICS
-  } = useMqtt();
-
-  useEffect(() => {
-    // MQTT connection is handled automatically by useMqtt hook
-    console.log('🍚 StartCooking: MQTT connection status:', isConnected ? 'Connected' : 'Disconnected');
-  }, [isConnected]);
 
   const getEstimatedTime = (quantity) => {
-    switch (quantity) {
+    switch(quantity) {
       case '1 Cup': return '30min';
       case '1.5 Cup': return '45min';
       case '2 Cup': return '55min';
-
       default: return '30min';
     }
   };
 
   const toggleQuantity = () => {
-    switch (selectedQuantity) {
+    switch(selectedQuantity) {
       case '1 Cup': return '1.5 Cup';
       case '1.5 Cup': return '2 Cup';
       case '2 Cup': return '1 Cup';
@@ -50,27 +35,6 @@ const StartCooking = ({ navigation }) => {
   };
 
   const handleStartCooking = async () => {
-    // Show confirmation popup
-    Alert.alert(
-      'Confirm Cooking',
-      `Are you sure you want to start cooking ${selectedQuantity} of rice?`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'OK',
-          onPress: () => confirmStartCooking(),
-        },
-      ]
-    );
-  };
-
-
-  const confirmStartCooking = async () => {
-
-    //
     let rice_quantity = 1;
     if (selectedQuantity === '1.5 Cup') rice_quantity = 2;
     if (selectedQuantity === '2 Cup') rice_quantity = 5;
@@ -93,34 +57,15 @@ const StartCooking = ({ navigation }) => {
       );
 
       console.log('✅ Prediction response:', response.data);
-      //
 
-      //
       const predictionData = response.data.prediction || {};
       const nextTime = predictionData.next_time_prediction;
       const cooked = predictionData.prediction; // 1 or 0
 
       if (cooked === 1) {
-        Alert.alert('Prediction', `Likely to cook.Shall I start cooking ${rice_quantity} cups ?`);
+        Alert.alert('Prediction', `Likely to cook. Shall I start cooking ${rice_quantity} cups?`);
       } else {
         Alert.alert('Prediction', 'Probably no cooking expected now.');
-      }
-
-      // Send MQTT message to start cooking
-      if (isConnected) {
-        const success = startCooking(selectedQuantity);
-        if (success) {
-          console.log('✅ MQTT start cooking message sent');
-        } else {
-          console.log('❌ Failed to send MQTT start cooking message');
-        }
-      } else {
-        console.log('⚠️ MQTT not connected, trying to connect...');
-        connect();
-        // Try again after a short delay
-        setTimeout(() => {
-          startCooking(selectedQuantity);
-        }, 1000);
       }
 
       if (nextTime) {
@@ -138,11 +83,8 @@ const StartCooking = ({ navigation }) => {
         }
       }
 
-      // Navigate to CookingStatus with prediction info and MQTT topics
       navigation.navigate('CookingStatus', {
         predictionInfo: nextTime || "No future prediction available",
-        selectedQuantity: selectedQuantity,
-        mqttTopics: MQTT_TOPICS,
       });
 
     } catch (error) {
@@ -172,7 +114,7 @@ const StartCooking = ({ navigation }) => {
           />
         </View>
         <TouchableOpacity style={styles.menuButton}>
-          <Image
+          <Image 
             source={require('../assets/menu.png')}
             style={styles.menuIcon}
             resizeMode="contain"
@@ -185,17 +127,10 @@ const StartCooking = ({ navigation }) => {
           <Text style={styles.startCookingText}>Start Cooking</Text>
         </View>
 
-        {/* MQTT Connection Status */}
-        <View style={styles.mqttStatusContainer}>
-          <Text style={styles.mqttStatusText}>
-            MQTT Status: {isConnected ? '🟢 Connected' : '🔴 Disconnected'}
-          </Text>
-        </View>
-
         <View style={styles.quantitySection}>
           <Text style={styles.sectionTitle}>Quantity Selection</Text>
-
-          <TouchableOpacity
+          
+          <TouchableOpacity 
             style={styles.quantitySelector}
             onPress={() => setSelectedQuantity(toggleQuantity())}
           >
@@ -214,12 +149,6 @@ const StartCooking = ({ navigation }) => {
           </Text>
         </View> */}
 
-        {/* <View style={styles.estimatedSection}>
-          <Text style={styles.estimatedTime}>
-            Estimated cooking time : {getEstimatedTime(selectedQuantity)}{'\n'}
-            ( Based on the selected Quantity )
-          </Text>
-        </View> */}
         <View style={styles.estimatedSection}>
           <Text style={styles.estimatedTime}>
             Estimated cooking time : {getEstimatedTime(selectedQuantity)}{'\n'}
@@ -228,17 +157,14 @@ const StartCooking = ({ navigation }) => {
         </View>
 
         <View style={styles.buttonContainer}>
-          <TouchableOpacity
-            style={[styles.startButton, !isConnected && styles.disabledButton]}
+          <TouchableOpacity 
+            style={styles.startButton}
             onPress={handleStartCooking}
-            disabled={!isConnected}
           >
-            <Text style={styles.buttonText}>
-              {isConnected ? 'Start Cooking' : 'Connecting...'}
-            </Text>
+            <Text style={styles.buttonText}>Start Cooking</Text>
           </TouchableOpacity>
-
-          <TouchableOpacity
+          
+          <TouchableOpacity 
             style={styles.cancelButton}
             onPress={() => navigation.goBack()}
           >
@@ -307,20 +233,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     textAlign: 'center',
     fontWeight: '600',
-  },
-  mqttStatusContainer: {
-    backgroundColor: '#F5F5F5',
-    padding: 10,
-    borderRadius: 10,
-    marginBottom: 15,
-    borderWidth: 0.5,
-    borderColor: '#096171',
-  },
-  mqttStatusText: {
-    textAlign: 'center',
-    color: '#178ea3',
-    fontSize: 14,
-    fontWeight: '500',
   },
   quantitySection: {
     backgroundColor: '#F5F5F5',
@@ -402,9 +314,6 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 10,
     alignItems: 'center',
-  },
-  disabledButton: {
-    backgroundColor: '#cccccc',
   },
   cancelButton: {
     flex: 1,

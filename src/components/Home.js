@@ -17,7 +17,7 @@ const Home = ({ navigation, route }) => {
   
   // MQTT state
   const [cookingProgress, setCookingProgress] = useState(0);
-  const [cookingStatus, setCookingStatus] = useState('idle');
+  const [cookingStatus, setCookingStatus] = useState('Waiting...');
   const [isCooking, setIsCooking] = useState(false);
   
   const { 
@@ -38,7 +38,7 @@ const Home = ({ navigation, route }) => {
       }
       if (data.status) {
         setCookingStatus(data.status);
-        setIsCooking(data.status !== 'idle' && data.status !== 'done');
+        setIsCooking(data.status !== 'Waiting...' && data.status !== 'done');
       }
     };
 
@@ -133,7 +133,7 @@ const Home = ({ navigation, route }) => {
             <View style={styles.statusContainer}>
               <Text style={styles.statusText}>Your Current Rice cooking State is:</Text>
               <Text style={[styles.percentage, { color: getStatusColor() }]}>
-                {cookingProgress}%
+                {cookingProgress*20}%
               </Text>
               <Text style={[styles.statusDetailText, { color: getStatusColor() }]}>
                 {getStatusText()}
@@ -148,7 +148,7 @@ const Home = ({ navigation, route }) => {
               >
                 <View style={styles.quickStatusContent}>
                   <Text style={styles.quickStatusTitle}>Active Cooking Session</Text>
-                  <Text style={styles.quickStatusProgress}>{cookingProgress}% Complete</Text>
+                  <Text style={styles.quickStatusProgress}>{cookingProgress*20}% Complete</Text>
                   <Text style={styles.quickStatusAction}>Tap to view details →</Text>
                 </View>
               </TouchableOpacity>

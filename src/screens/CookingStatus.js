@@ -17,17 +17,17 @@ const CookingStatus = ({ route, navigation }) => {
   const [countdown, setCountdown] = useState('');
   const [nextSchedule, setNextSchedule] = useState('');
   const [cookingProgress, setCookingProgress] = useState(0);
-  const [cookingStatus, setCookingStatus] = useState('idle');
+  const [cookingStatus, setCookingStatus] = useState('Waiting...');
   const [alerts, setAlerts] = useState([]);
   const [deviceStatus, setDeviceStatus] = useState({});
 
-  const { 
-    isConnected, 
-    connect, 
+  const {
+    isConnected,
+    connect,
     subscribeToCookingProgress,
     subscribeToAlerts,
     subscribeToDeviceStatus,
-    MQTT_TOPICS 
+    MQTT_TOPICS
   } = useMqtt();
 
   useEffect(() => {
@@ -35,8 +35,10 @@ const CookingStatus = ({ route, navigation }) => {
     const progressCallback = (data) => {
       console.log('📊 Cooking progress received:', data);
       if (data.progress !== undefined) {
-        setCookingProgress(data.progress);
+        const percentage = data.progress * 20;
+        setCookingProgress(percentage);
       }
+
       if (data.status) {
         setCookingStatus(data.status);
       }
@@ -46,7 +48,7 @@ const CookingStatus = ({ route, navigation }) => {
     const alertCallback = (data) => {
       console.log('🚨 Alert received:', data);
       setAlerts(prev => [...prev, data]);
-      
+
       // Show alert to user
       if (data.message) {
         Alert.alert('Cooking Alert', data.message);
@@ -102,18 +104,18 @@ const CookingStatus = ({ route, navigation }) => {
   }, [predictionInfo]);
 
   const getStatusText = () => {
-    switch(cookingStatus) {
+    switch (cookingStatus) {
       case 'washing': return 'Washing Rice';
       case 'soaking': return 'Soaking Rice';
       case 'cooking': return 'Cooking Rice';
       case 'done': return 'Cooking Complete!';
       case 'error': return 'Error Occurred';
-      default: return 'Preparing...';
+      default: return cookingStatus;
     }
   };
 
   const getStatusColor = () => {
-    switch(cookingStatus) {
+    switch (cookingStatus) {
       case 'washing': return '#4CAF50';
       case 'soaking': return '#2196F3';
       case 'cooking': return '#FF9800';
@@ -153,7 +155,7 @@ const CookingStatus = ({ route, navigation }) => {
         />
         <Text style={styles.headerTitle}>Cooking Status</Text>
         <TouchableOpacity style={styles.menuButton}>
-          <Image 
+          <Image
             source={require('../assets/menu.png')}
             style={styles.menuIcon}
             resizeMode="contain"
@@ -230,13 +232,22 @@ const CookingStatus = ({ route, navigation }) => {
           </View>
         )}
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.cancelButton}
           onPress={handleCancelCooking}
         >
           <Text style={styles.cancelButtonText}>Cancel Cooking</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Show next schedule at bottom */}
+      {nextSchedule ? (
+        <View style={{ alignItems: 'center', marginBottom: 10 }}>
+          <Text style={[styles.estimatedTime, { fontSize: 16, color: '#178ea3' }]}>
+            {nextSchedule}
+          </Text>
+        </View>
+      ) : null}
 
       <View style={styles.footer}>
         <TouchableOpacity onPress={() => navigation.navigate('TermsOfService')}>
@@ -249,6 +260,7 @@ const CookingStatus = ({ route, navigation }) => {
           <Text style={styles.footerText}>Contact Us</Text>
         </TouchableOpacity>
       </View>
+
     </SafeAreaView>
   );
 };
