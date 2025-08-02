@@ -3,95 +3,36 @@ import {
   View,
   Text,
   StyleSheet,
-  TextInput,
   TouchableOpacity,
   SafeAreaView,
   Image,
-  ScrollView,
+  Alert,
+  Switch,
 } from 'react-native';
-import { ScrollView as RNScrollView } from 'react-native'; // alias for debug log
-import mqttService from '../services/MqttService';
-
-const MQTT_TOPIC = 'riceCooker/quantity';
+import useMqtt from '../hooks/useMqtt';
 
 const Settings = ({ navigation }) => {
-  const [serialNumber, setSerialNumber] = useState('');
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState('disconnected');
-  const [brokerHost, setBrokerHost] = useState('broker.hivemq.com');
-  const [brokerPort, setBrokerPort] = useState('8000');
-  const [clientId, setClientId] = useState(`clientId-${Math.random().toString(36).substr(2, 9)}`);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [keepAlive, setKeepAlive] = useState('60');
-  const [debugLog, setDebugLog] = useState([]);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [darkModeEnabled, setDarkModeEnabled] = useState(false);
+  const [autoConnect, setAutoConnect] = useState(true);
+  
+  const { 
+    isConnected, 
+    connectionConfig
+  } = useMqtt();
 
-  const appendLog = (msg) => {
-    setDebugLog((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`].slice(-100));
-  };
 
-  useEffect(() => {
-    // Listen for connection status changes
-    const handleStatusChange = (status) => {
-      setConnectionStatus(status);
-      appendLog(`Status: ${status}`);
-    };
-    const handleMessage = (msg) => appendLog(`Message: ${JSON.stringify(msg)}`);
 
-    mqttService.onStatusChange(handleStatusChange);
-    mqttService.onMessage(handleMessage);
-
-    setConnectionStatus(mqttService.getConnectionStatus());
-
-    return () => {
-      // No off() method in current service, so logs will accumulate if you hot reload
-    };
-  }, []);
-
-  const handleConnect = async () => {
-    try {
-      appendLog(`Connecting to: ${brokerHost}:${brokerPort} as ${clientId}`);
-      mqttService.connect(
-
-      );
-      // Subscribe to the topic after connecting
-      appendLog(`subscribing to ${MQTT_TOPIC}`);
-      mqttService.subscribe(MQTT_TOPIC, (msg) => {
-        appendLog(`Received on ${MQTT_TOPIC}: ${JSON.stringify(msg)}`);
-      });
-    } catch (error) {
-      appendLog(`Failed to connect: ${error}`);
-      setConnectionStatus('disconnected');
+  const getConnectionTypeColor = () => {
+    if (isConnected) {
+      return '#2196F3'; // WebSocket blue
     }
+    return '#F44336';
   };
 
-  const handleDisconnect = () => {
-    appendLog('Disconnecting...');
-    mqttService.disconnect();
-  };
-
-  const getStatusColor = () => {
-    switch (connectionStatus) {
-      case 'connected':
-        return '#4CAF50';
-      case 'connecting':
-        return '#FF9800';
-      case 'disconnected':
-      default:
-        return '#F44336';
-    }
-  };
-
-  const getStatusText = () => {
-    switch (connectionStatus) {
-      case 'connected':
-        return 'Connected';
-      case 'connecting':
-        return 'Connecting...';
-      case 'disconnected':
-      default:
-        return 'Disconnected';
-    }
+  const getConnectionTypeText = () => {
+    const status = isConnected ? 'Connected' : 'Disconnected';
+    return `WEBSOCKET (${status})`;
   };
 
   return (
@@ -102,18 +43,7 @@ const Settings = ({ navigation }) => {
           style={styles.logo}
           resizeMode="contain"
         />
-        <View style={styles.searchContainer}>
-          <Image
-            source={require('../assets/search.png')}
-            style={styles.searchIcon}
-            resizeMode="contain"
-          />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search..."
-            placeholderTextColor="#FFFFFF"
-          />
-        </View>
+        <Text style={styles.headerTitle}>Settings</Text>
         <TouchableOpacity style={styles.menuButton}>
           <Image 
             source={require('../assets/menu.png')}
@@ -123,135 +53,118 @@ const Settings = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content}>
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>Settings</Text>
-        </View>
-
-        <View style={styles.connectionSection}>
-          <View style={styles.connectionHeader}>
-            <Text style={styles.connectionText}>
-              My Home: <Text style={[styles.statusText, { color: getStatusColor() }]}>{getStatusText()}</Text>
-            </Text>
-            <View style={[styles.statusIndicator, { backgroundColor: getStatusColor() }]} />
-          </View>
+      <View style={styles.content}>
+        {/* MQTT Connection Settings */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>MQTT Connection</Text>
           
-          <View style={styles.brokerConfigContainer}>
-            <Text style={styles.configLabel}>Broker Configuration:</Text>
-            
-            <View style={styles.configRow}>
-              <Text style={styles.configFieldLabel}>Host:</Text>
-              <TextInput
-                style={styles.configInput}
-                value={brokerHost}
-                onChangeText={setBrokerHost}
-                placeholder="mqtt-dashboard.com"
-              />
-            </View>
-            
-            <View style={styles.configRow}>
-              <Text style={styles.configFieldLabel}>Port:</Text>
-              <TextInput
-                style={styles.configInput}
-                value={brokerPort}
-                onChangeText={setBrokerPort}
-                placeholder="8884"
-                keyboardType="numeric"
-              />
-            </View>
-            
-            <View style={styles.configRow}>
-              <Text style={styles.configFieldLabel}>Client ID:</Text>
-              <TextInput
-                style={styles.configInput}
-                value={clientId}
-                onChangeText={setClientId}
-                placeholder="clientId-xxx"
-              />
-            </View>
-            
-            <View style={styles.configRow}>
-              <Text style={styles.configFieldLabel}>Username:</Text>
-              <TextInput
-                style={styles.configInput}
-                value={username}
-                onChangeText={setUsername}
-                placeholder="(optional)"
-              />
-            </View>
-            
-            <View style={styles.configRow}>
-              <Text style={styles.configFieldLabel}>Password:</Text>
-              <TextInput
-                style={styles.configInput}
-                value={password}
-                onChangeText={setPassword}
-                placeholder="(optional)"
-                secureTextEntry
-              />
-            </View>
-            
-            <View style={styles.configRow}>
-              <Text style={styles.configFieldLabel}>Keep Alive:</Text>
-              <TextInput
-                style={styles.configInput}
-                value={keepAlive}
-                onChangeText={setKeepAlive}
-                placeholder="60"
-                keyboardType="numeric"
-              />
+          <View style={styles.settingItem}>
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingLabel}>Connection Type</Text>
+              <Text style={[styles.settingValue, { color: getConnectionTypeColor() }]}>
+                {getConnectionTypeText()}
+              </Text>
             </View>
           </View>
 
-          <View style={styles.serialInputContainer}>
-            <TextInput
-              style={styles.serialInput}
-              placeholder="Serial-number"
-              value={serialNumber}
-              onChangeText={setSerialNumber}
+          <View style={styles.settingItem}>
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingLabel}>Connection Details</Text>
+              <Text style={styles.settingValue}>
+                {connectionConfig?.host || 'Unknown'}:{connectionConfig?.port || 'Unknown'} ({connectionConfig?.protocol || 'Unknown'})
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.connectionInfo}>
+            <Text style={styles.connectionInfoText}>
+              <Text style={styles.bold}>WebSocket:</Text> MQTT over WebSocket protocol (Port 8000)
+            </Text>
+            <Text style={styles.connectionInfoText}>
+              Compatible with React Native and works through firewalls
+            </Text>
+          </View>
+        </View>
+
+        {/* App Settings */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>App Settings</Text>
+          <View style={styles.settingItem}>
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingLabel}>Push Notifications</Text>
+              <Text style={styles.settingDescription}>Receive cooking alerts</Text>
+            </View>
+            <Switch
+              value={notificationsEnabled}
+              onValueChange={setNotificationsEnabled}
+              trackColor={{ false: '#767577', true: '#178ea3' }}
+              thumbColor={notificationsEnabled ? '#ffffff' : '#f4f3f4'}
             />
-            {connectionStatus === 'connected' ? (
-              <TouchableOpacity style={[styles.connectButton, styles.disconnectButton]} onPress={handleDisconnect}>
-                <Text style={styles.connectButtonText}>Disconnect</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity style={styles.connectButton} onPress={handleConnect}>
-                <Text style={styles.connectButtonText}>Connect</Text>
-              </TouchableOpacity>
-            )}
+          </View>
+
+          <View style={styles.settingItem}>
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingLabel}>Dark Mode</Text>
+              <Text style={styles.settingDescription}>Use dark theme</Text>
+            </View>
+            <Switch
+              value={darkModeEnabled}
+              onValueChange={setDarkModeEnabled}
+              trackColor={{ false: '#767577', true: '#178ea3' }}
+              thumbColor={darkModeEnabled ? '#ffffff' : '#f4f3f4'}
+            />
+          </View>
+
+          <View style={styles.settingItem}>
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingLabel}>Auto Connect</Text>
+              <Text style={styles.settingDescription}>Connect to MQTT automatically</Text>
+            </View>
+            <Switch
+              value={autoConnect}
+              onValueChange={setAutoConnect}
+              trackColor={{ false: '#767577', true: '#178ea3' }}
+              thumbColor={autoConnect ? '#ffffff' : '#f4f3f4'}
+            />
           </View>
         </View>
 
-        {/* Debug Log Box */}
-        <View style={styles.debugBox}>
-          <Text style={styles.debugTitle}>Debug Log</Text>
-          <RNScrollView style={styles.debugScroll}>
-            {debugLog.map((line, idx) => (
-              <Text key={idx} style={styles.debugLine}>{line}</Text>
-            ))}
-          </RNScrollView>
-        </View>
+        {/* About Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>About</Text>
+          
+          <TouchableOpacity style={styles.settingItem}>
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingLabel}>Version</Text>
+              <Text style={styles.settingValue}>1.0.0</Text>
+            </View>
+          </TouchableOpacity>
 
-        <View style={styles.riceCookerContainer}>
-          <Image
-            source={require('../assets/rice-cooker.png')}
-            style={styles.riceCookerImage}
-            resizeMode="contain"
-          />
-        </View>
+          <TouchableOpacity style={styles.settingItem}>
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingLabel}>Terms of Service</Text>
+            </View>
+          </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.profileButton}
-          onPress={() => navigation.navigate('Profile')}
-        >
-          <Image
-            source={require('../assets/profile.png')}
-            style={styles.profileIcon}
-          />
-          <Text style={styles.profileButtonText}>Your Profile</Text>
-          <Text style={styles.arrowIcon}>→</Text>
+          <TouchableOpacity style={styles.settingItem}>
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingLabel}>Privacy Policy</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={styles.footer}>
+        <TouchableOpacity onPress={() => navigation.navigate('TermsOfService')}>
+          <Text style={styles.footerText}>Term of Service</Text>
         </TouchableOpacity>
-      </ScrollView>
+        <TouchableOpacity onPress={() => navigation.navigate('PrivacyPolicy')}>
+          <Text style={styles.footerText}>Privacy policy</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate('ContactUs')}>
+          <Text style={styles.footerText}>Contact Us</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 };
@@ -272,27 +185,10 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
   },
-  searchContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 20,
-    marginHorizontal: 10,
-    paddingHorizontal: 10,
-    height: 40,
-  },
-  searchIcon: {
-    width: 20,
-    height: 20,
-    tintColor: '#FFFFFF',
-    marginRight: 5,
-  },
-  searchInput: {
-    flex: 1,
+  headerTitle: {
     color: '#FFFFFF',
-    fontSize: 16,
-    padding: 0,
+    fontSize: 20,
+    fontWeight: 'bold',
   },
   menuIcon: {
     width: 24,
@@ -303,156 +199,67 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
-  titleContainer: {
-    backgroundColor: '#178ea3',
-    padding: 15,
-    borderRadius: 25,
-    marginBottom: 30,
-    borderWidth: 0.9,
-    borderColor: '#096171',
-  },
-  title: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    textAlign: 'center',
-    fontWeight: '600',
-  },
-  connectionSection: {
+  section: {
     marginBottom: 30,
   },
-  connectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#178ea3',
     marginBottom: 15,
   },
-  connectionText: {
+  settingItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  settingInfo: {
+    flex: 1,
+  },
+  settingLabel: {
     fontSize: 16,
-    fontWeight: '600',
+    color: '#333333',
+    fontWeight: '500',
   },
-  statusText: {
-    fontWeight: 'bold',
+  settingDescription: {
+    fontSize: 14,
+    color: '#666666',
+    marginTop: 2,
   },
-  statusIndicator: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+  settingValue: {
+    fontSize: 14,
+    color: '#178ea3',
+    marginTop: 2,
   },
-  brokerConfigContainer: {
+
+  connectionInfo: {
     backgroundColor: '#F5F5F5',
     padding: 15,
     borderRadius: 10,
-    marginBottom: 15,
+    marginTop: 10,
   },
-  configLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 10,
-    color: '#333',
-  },
-  configRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  configFieldLabel: {
-    width: 80,
+  connectionInfoText: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#666',
+    color: '#666666',
+    marginBottom: 5,
   },
-  configInput: {
-    flex: 1,
-    height: 35,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 5,
-    paddingHorizontal: 8,
+  bold: {
+    fontWeight: '600',
+  },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    padding: 20,
+    backgroundColor: '#096171',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  footerText: {
+    color: '#FFFFFF',
     fontSize: 14,
-    backgroundColor: '#FFFFFF',
-  },
-  serialInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  serialInput: {
-    flex: 1,
-    height: 44,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    marginRight: 10,
-  },
-  connectButton: {
-    backgroundColor: '#178ea3',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  disconnectButton: {
-    backgroundColor: '#F44336',
-  },
-  connectButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  riceCookerContainer: {
-    alignItems: 'center',
-    marginVertical: 40,
-  },
-  riceCookerImage: {
-    width: 300,
-    height: 320,
-  },
-  profileButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#178ea3',
-    padding: 16,
-    borderRadius: 25,
-    marginBottom:50
-    
-  },
-  profileIcon: {
-    width: 24,
-    height: 24,
-    tintColor: '#FFFFFF',
-    marginRight: 12,
-  },
-  profileButtonText: {
-    flex: 1,
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  arrowIcon: {
-    color: '#FFFFFF',
-    fontSize: 20,
-  },
-  // Add debug box styles:
-  debugBox: {
-    backgroundColor: '#222',
-    borderRadius: 8,
-    padding: 10,
-    marginTop: 20,
-    marginBottom: 30,
-    minHeight: 240, // was 120
-    maxHeight: 400, // was 200
-  },
-  debugTitle: {
-    color: '#fff',
-    fontWeight: 'bold',
-    marginBottom: 6,
-  },
-  debugScroll: {
-    maxHeight: 350, // was 160
-    minHeight: 200, // ensure always scrollable
-  },
-  debugLine: {
-    color: '#b5e853',
-    fontSize: 12,
-    fontFamily: 'monospace',
   },
 });
 
